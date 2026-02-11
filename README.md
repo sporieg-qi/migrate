@@ -768,8 +768,9 @@ drop policy if exists access_by_numbers on mytable;
 create policy access_by_numbers on mytable for update using (myfunction(4, 2) < 42);
 ```
 
-and when the migration is committed or watched, the contents of `myfunction.sql`
-will be included in the result, such that the following SQL is executed:
+and when the migration is committed, watched, run, or compiled, the contents of
+`myfunction.sql` will be included in the result, such that the following SQL is
+executed:
 
 ```sql
 create or replace function myfunction(a int, b int)

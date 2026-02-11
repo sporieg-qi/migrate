@@ -1,10 +1,11 @@
 import * as fsp from "fs/promises";
+import { resolve } from "path";
 import { QueryResultRow } from "pg";
 import { CommandModule } from "yargs";
 
 import { DO_NOT_USE_DATABASE_URL } from "../actions";
 import { runQueryWithErrorInstrumentation } from "../instrumentation";
-import { compilePlaceholders } from "../migration";
+import { compileIncludes, compilePlaceholders } from "../migration";
 import { withClient } from "../pgReal";
 import {
   makeRootDatabaseConnectionString,
@@ -35,7 +36,12 @@ export async function run<T extends QueryResultRow = QueryResultRow>(
   } = {},
 ): Promise<T[] | undefined> {
   const parsedSettings = await parseSettings(settings, shadow);
-  const sql = compilePlaceholders(parsedSettings, content, shadow);
+  const parsedContent = await compileIncludes(
+    parsedSettings,
+    content,
+    new Set([filename]),
+  );
+  const sql = compilePlaceholders(parsedSettings, parsedContent, shadow);
   const baseConnectionString = rootDatabase
     ? parsedSettings.rootConnectionString
     : shadow
@@ -62,7 +68,7 @@ export const runCommand: CommandModule<Record<string, never>, RunArgv> = {
   command: "run [file]",
   aliases: [],
   describe: `\
-Compiles a SQL file, inserting all the placeholders, and then runs it against the database. Useful for seeding. If called from an action will automatically run against the same database (via GM_DBURL envvar) unless --shadow or --rootDatabase are supplied.`,
+Compiles a SQL file, resolving includes, inserting all the placeholders, and then runs it against the database. Useful for seeding. If called from an action will automatically run against the same database (via GM_DBURL envvar) unless --shadow or --rootDatabase are supplied.`,
   builder: {
     shadow: {
       type: "boolean",
@@ -105,7 +111,7 @@ Compiles a SQL file, inserting all the placeholders, and then runs it against th
     const { content, filename } =
       typeof argv.file === "string"
         ? {
-            filename: argv.file,
+            filename: resolve(argv.file),
             content: await fsp.readFile(argv.file, "utf8"),
           }
         : { filename: "stdin", content: await readStdin() };
